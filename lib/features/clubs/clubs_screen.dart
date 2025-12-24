@@ -68,7 +68,7 @@ class _ClubsScreenState extends State<ClubsScreen> with SingleTickerProviderStat
                 'Clubs & Communities',
                 style: TextStyle(
                   color: Colors.white,
-                  fontSize: 22,
+                  fontSize: 24,
                   fontWeight: FontWeight.bold,
                 ),
               ),
