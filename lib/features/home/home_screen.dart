@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../feed/feed_screen.dart';
+import '../search/search_screen.dart';
 import '../clubs/clubs_screen.dart';
 import '../profile/profile_screen.dart';
 
@@ -15,6 +16,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   final List<Widget> _pages = const [
     FeedScreen(),
+    SearchScreen(),
     ClubsScreen(),
     ProfileScreen(),
   ];
@@ -77,6 +79,17 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Icon(Icons.home, size: 24),
                 ),
                 label: 'Feed',
+              ),
+              BottomNavigationBarItem(
+                icon: Padding(
+                  padding: EdgeInsets.only(bottom: 4),
+                  child: Icon(Icons.search_outlined, size: 24),
+                ),
+                activeIcon: Padding(
+                  padding: EdgeInsets.only(bottom: 4),
+                  child: Icon(Icons.search, size: 24),
+                ),
+                label: 'Search',
               ),
               BottomNavigationBarItem(
                 icon: Padding(

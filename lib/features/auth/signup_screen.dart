@@ -333,11 +333,57 @@ class _SignUpScreenState extends State<SignUpScreen> {
                                       return;
                                     }
 
-                                    await auth.signup(
-                                      _fullNameController.text.trim(),
-                                      _emailController.text.trim(),
-                                      _passwordController.text,
-                                    );
+                                    // Clear previous error
+                                    auth.clearError();
+
+                                    try {
+                                      await auth.signup(
+                                        _fullNameController.text.trim(),
+                                        _emailController.text.trim(),
+                                        _passwordController.text,
+                                      );
+                                    } catch (e) {
+                                      // Error is already set in AuthProvider
+                                    }
+                                    
+                                    // Show error if signup failed
+                                    if (auth.error != null && context.mounted) {
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          backgroundColor: const Color(0xFF1E293B),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          title: const Row(
+                                            children: [
+                                              Icon(Icons.error_outline, color: Colors.red, size: 28),
+                                              SizedBox(width: 12),
+                                              Text(
+                                                'Signup Failed',
+                                                style: TextStyle(color: Colors.white),
+                                              ),
+                                            ],
+                                          ),
+                                          content: Text(
+                                            auth.error!,
+                                            style: const TextStyle(
+                                              color: Color(0xFF94A3B8),
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context),
+                                              child: const Text(
+                                                'OK',
+                                                style: TextStyle(color: Color(0xFF2B6CEE)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,

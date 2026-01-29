@@ -56,20 +56,17 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 0, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0xFF1E293B),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha:0.05),
-        ),
+        borderRadius: BorderRadius.circular(0),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 GestureDetector(
@@ -77,7 +74,7 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
                   child: UserAvatar(
                     imageUrl: widget.post.userAvatar,
                     name: widget.post.username,
-                    size: 44,
+                    size: 40,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -97,32 +94,12 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
                         ),
                       ),
                       const SizedBox(height: 2),
-                      Row(
-                        children: [
-                          if (widget.post.userDepartment != null) ...[
-                            Text(
-                              widget.post.userDepartment!,
-                              style: const TextStyle(
-                                color: Color(0xFF94A3B8),
-                                fontSize: 13,
-                              ),
-                            ),
-                            const Padding(
-                              padding: EdgeInsets.symmetric(horizontal: 6),
-                              child: Text(
-                                '•',
-                                style: TextStyle(color: Color(0xFF94A3B8)),
-                              ),
-                            ),
-                          ],
-                          Text(
-                            TimeFormatter.getRelativeTime(widget.post.createdAt),
-                            style: const TextStyle(
-                              color: Color(0xFF94A3B8),
-                              fontSize: 13,
-                            ),
-                          ),
-                        ],
+                      Text(
+                        TimeFormatter.getRelativeTime(widget.post.createdAt),
+                        style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 12,
+                        ),
                       ),
                     ],
                   ),
@@ -130,88 +107,58 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
                 IconButton(
                   icon: const Icon(Icons.more_horiz, color: Color(0xFF94A3B8)),
                   onPressed: () => _showPostOptions(context),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
                 ),
               ],
             ),
           ),
 
+          // Images (show before content)
+          if (widget.post.imageUrls.isNotEmpty) _buildImageDisplay(),
+
           // Content
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Text(
-              widget.post.content,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 15,
-                height: 1.5,
+          if (widget.post.content.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: Text(
+                widget.post.content,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  height: 1.4,
+                ),
               ),
             ),
-          ),
-
-          // Tags
-          if (widget.post.tags.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: widget.post.tags.map((tag) {
-                  return Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF2B6CEE).withValues(alpha:0.15),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(
-                        color: const Color(0xFF2B6CEE).withValues(alpha:0.3),
-                      ),
-                    ),
-                    child: Text(
-                      '#$tag',
-                      style: const TextStyle(
-                        color: Color(0xFF60A5FA),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ),
-
-          // Images
-          if (widget.post.imageUrls.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: _buildImageGrid(),
-            ),
-
-          // Link Preview
-          if (widget.post.linkUrl != null) _buildLinkPreview(),
 
           // Actions
           Padding(
-            padding: const EdgeInsets.all(12),
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
             child: Row(
               children: [
                 _buildActionButton(
                   icon: widget.post.isLikedByCurrentUser
                       ? Icons.favorite
                       : Icons.favorite_border,
-                  label: TimeFormatter.formatCompactNumber(widget.post.likes),
+                  label: widget.post.likes > 0
+                      ? TimeFormatter.formatCompactNumber(widget.post.likes)
+                      : '',
                   color: widget.post.isLikedByCurrentUser
                       ? const Color(0xFFEC4899)
                       : const Color(0xFF94A3B8),
                   onTap: _handleLike,
                   isAnimating: _isLikeAnimating,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
                 _buildActionButton(
                   icon: Icons.chat_bubble_outline,
-                  label: TimeFormatter.formatCompactNumber(widget.post.comments),
+                  label: widget.post.comments > 0
+                      ? TimeFormatter.formatCompactNumber(widget.post.comments)
+                      : '',
                   color: const Color(0xFF94A3B8),
                   onTap: widget.onComment,
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 8),
                 if (widget.onShare != null)
                   _buildActionButton(
                     icon: Icons.share_outlined,
@@ -223,16 +170,15 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
                   ),
                 const Spacer(),
                 if (widget.onBookmark != null)
-                  IconButton(
-                    icon: Icon(
-                      widget.post.isBookmarked
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                      color: widget.post.isBookmarked
-                          ? const Color(0xFF2B6CEE)
-                          : const Color(0xFF94A3B8),
-                    ),
-                    onPressed: widget.onBookmark,
+                  _buildActionButton(
+                    icon: widget.post.isBookmarked
+                        ? Icons.bookmark
+                        : Icons.bookmark_border,
+                    label: '',
+                    color: widget.post.isBookmarked
+                        ? const Color(0xFF2B6CEE)
+                        : const Color(0xFF94A3B8),
+                    onTap: widget.onBookmark!,
                   ),
               ],
             ),
@@ -253,16 +199,17 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
       onTap: onTap,
       borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
             AnimatedScale(
               scale: isAnimating ? 1.3 : 1.0,
               duration: const Duration(milliseconds: 200),
-              child: Icon(icon, size: 20, color: color),
+              child: Icon(icon, size: 22, color: color),
             ),
             if (label.isNotEmpty) ...[
-              const SizedBox(width: 6),
+              const SizedBox(width: 4),
               Text(
                 label,
                 style: TextStyle(
@@ -278,154 +225,83 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
     );
   }
 
-  Widget _buildImageGrid() {
+  Widget _buildImageDisplay() {
     final images = widget.post.imageUrls;
+    
     if (images.length == 1) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          images[0],
-          width: double.infinity,
-          height: 250,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => Container(
-            height: 250,
+      // Single image - show full without cropping
+      return Image.network(
+        images[0],
+        width: double.infinity,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Container(
+            height: 300,
             color: const Color(0xFF0F172A),
-            child: const Center(
-              child: Icon(Icons.broken_image, color: Color(0xFF94A3B8)),
-            ),
-          ),
-        ),
-      );
-    } else if (images.length == 2) {
-      return Row(
-        children: images.map((url) {
-          return Expanded(
-            child: Padding(
-              padding: const EdgeInsets.all(2),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: Image.network(
-                  url,
-                  height: 180,
-                  fit: BoxFit.cover,
-                ),
+            child: Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                    : null,
+                color: const Color(0xFF2B6CEE),
               ),
             ),
           );
-        }).toList(),
-      );
-    } else {
-      return GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 4,
-          mainAxisSpacing: 4,
-        ),
-        itemCount: images.length > 4 ? 4 : images.length,
-        itemBuilder: (context, index) {
-          final isLast = index == 3 && images.length > 4;
-          return ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                Image.network(
-                  images[index],
-                  fit: BoxFit.cover,
-                ),
-                if (isLast)
-                  Container(
-                    color: Colors.black.withValues(alpha:0.6),
-                    child: Center(
-                      child: Text(
-                        '+${images.length - 4}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          );
         },
+        errorBuilder: (_, __, ___) => Container(
+          height: 300,
+          color: const Color(0xFF0F172A),
+          child: const Center(
+            child: Icon(Icons.broken_image, color: Color(0xFF94A3B8), size: 48),
+          ),
+        ),
       );
     }
-  }
-
-  Widget _buildLinkPreview() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: const Color(0xFF0F172A),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: Colors.white.withValues(alpha:0.05),
-          ),
-        ),
-        child: InkWell(
-          onTap: () {
-            // Open link
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.link, size: 16, color: Color(0xFF94A3B8)),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        widget.post.linkUrl!,
-                        style: const TextStyle(
-                          color: Color(0xFF94A3B8),
-                          fontSize: 12,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-                if (widget.post.linkTitle != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    widget.post.linkTitle!,
+    
+    // Multiple images - grid layout
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.zero,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: images.length == 2 ? 2 : 2,
+        crossAxisSpacing: 2,
+        mainAxisSpacing: 2,
+        childAspectRatio: 1,
+      ),
+      itemCount: images.length > 4 ? 4 : images.length,
+      itemBuilder: (context, index) {
+        final isLast = index == 3 && images.length > 4;
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.network(
+              images[index],
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => Container(
+                color: const Color(0xFF0F172A),
+                child: const Icon(Icons.broken_image, color: Color(0xFF94A3B8)),
+              ),
+            ),
+            if (isLast)
+              Container(
+                color: Colors.black.withValues(alpha: 0.6),
+                child: Center(
+                  child: Text(
+                    '+${images.length - 4}',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
                     ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-                if (widget.post.linkDescription != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.post.linkDescription!,
-                    style: const TextStyle(
-                      color: Color(0xFF94A3B8),
-                      fontSize: 13,
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
+                ),
+              ),
+          ],
+        );
+      },
     );
   }
 
@@ -441,14 +317,6 @@ class _FeedPostCardState extends State<FeedPostCard> with SingleTickerProviderSt
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              _buildBottomSheetOption(
-                icon: Icons.bookmark_border,
-                label: 'Save Post',
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onBookmark?.call();
-                },
-              ),
               _buildBottomSheetOption(
                 icon: Icons.link,
                 label: 'Copy Link',

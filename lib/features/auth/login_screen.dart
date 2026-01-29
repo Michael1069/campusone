@@ -232,10 +232,63 @@ class _LoginScreenState extends State<LoginScreen> {
                                       : () async {
                                     if (!_formKey.currentState!.validate()) return;
 
-                                    await auth.login(
-                                      _emailController.text.trim(),
-                                      _passwordController.text,
-                                    );
+                                    // Use read() to avoid unmounting
+                                    final authProvider = context.read<AuthProvider>();
+                                    
+                                    // Clear previous error
+                                    authProvider.clearError();
+
+                                    try {
+                                      await authProvider.login(
+                                        _emailController.text.trim(),
+                                        _passwordController.text,
+                                      );
+                                    } catch (e) {
+                                      print('✅ Exception caught: $e');
+                                    }
+                                    
+                                    print('🔍 After login - auth.error: ${authProvider.error}');
+                                    print('🔍 context.mounted: ${context.mounted}');
+                                    
+                                    // Show error if login failed
+                                    if (authProvider.error != null && context.mounted) {
+                                      print('🚨 Showing error dialog!');
+                                      showDialog(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          backgroundColor: const Color(0xFF1E293B),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(16),
+                                          ),
+                                          title: const Row(
+                                            children: [
+                                              Icon(Icons.error_outline, color: Colors.red, size: 28),
+                                              SizedBox(width: 12),
+                                              Text(
+                                                'Login Failed',
+                                                style: TextStyle(color: Colors.white),
+                                              ),
+                                            ],
+                                          ),
+                                          content: Text(
+                                            authProvider.error!,
+                                            style: const TextStyle(
+                                              color: Color(0xFF94A3B8),
+                                              fontSize: 15,
+                                            ),
+                                          ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context),
+                                              child: const Text(
+                                                'OK',
+                                                style: TextStyle(color: Color(0xFF2B6CEE)),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    }
                                   },
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: AppColors.primary,

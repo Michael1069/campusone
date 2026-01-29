@@ -1,18 +1,17 @@
 import 'package:flutter/material.dart';
-
 import '../feed/feed_screen.dart';
 import '../search/search_screen.dart';
 import '../clubs/clubs_screen.dart';
 import '../profile/profile_screen.dart';
 
-class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
+class HomeShellNew extends StatefulWidget {
+  const HomeShellNew({super.key});
 
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  State<HomeShellNew> createState() => _HomeShellNewState();
 }
 
-class _HomeShellState extends State<HomeShell> {
+class _HomeShellNewState extends State<HomeShellNew> {
   int _currentIndex = 0;
 
   final List<Widget> _screens = const [
@@ -24,10 +23,6 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
-    print('🔍 HomeShell building with ${_screens.length} screens');
-    print('🔍 Current index: $_currentIndex');
-    print('🔍 Bottom nav items: 4 (Feed, Search, Clubs, Profile)');
-    
     return Scaffold(
       body: IndexedStack(
         index: _currentIndex,
@@ -36,7 +31,6 @@ class _HomeShellState extends State<HomeShell> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _currentIndex,
         onTap: (index) {
-          print('🔍 Tapped nav item at index: $index');
           setState(() => _currentIndex = index);
         },
         type: BottomNavigationBarType.fixed,

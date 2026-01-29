@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_model.dart';
 import '../../models/feed_post.dart';
 import '../../widgets/user_avatar.dart';
 import '../../utils/time_formatter.dart';
 import '../../core/providers/auth_provider.dart';
+import '../../core/services/user_service.dart';
+import '../../core/services/post_service.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,41 +18,161 @@ class ProfileScreen extends StatefulWidget {
 
 class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  final UserService _userService = UserService();
+  final PostService _postService = PostService();
   UserModel? _currentUser;
-  final List<FeedPost> _userPosts = [];
+  List<FeedPost> _userPosts = [];
+  List<FeedPost> _savedPosts = [];
   bool _isLoading = true;
+  bool _isLoadingSaved = false;
+  bool _isLoadingMorePosts = false;
+  bool _hasMorePosts = true;
+  DocumentSnapshot? _lastPostDocument;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(_onTabChanged);
     _loadUserData();
   }
 
   @override
   void dispose() {
+    _tabController.removeListener(_onTabChanged);
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _onTabChanged() {
+    // Load saved posts when Saved tab is selected
+    if (_tabController.index == 1 && _savedPosts.isEmpty && !_isLoadingSaved) {
+      _loadSavedPosts();
+    }
   }
 
   Future<void> _loadUserData() async {
     setState(() => _isLoading = true);
 
-    await Future.delayed(const Duration(milliseconds: 800));
+    // Load user data from Firebase
+    final user = await _userService.getCurrentUser();
+    
+    if (user != null) {
+      // Load user's posts (first page)
+      final posts = await _userService.getUserPosts(user.id, limit: 20);
+      
+      // Get last document for pagination
+      if (posts.isNotEmpty) {
+        _lastPostDocument = await _userService.getLastPostDocument(user.id, posts.length);
+      }
+      
+      if (mounted) {
+        setState(() {
+          _currentUser = user;
+          _userPosts = posts;
+          _hasMorePosts = posts.length >= 20; // If we got 20, there might be more
+          _isLoading = false;
+        });
+      }
+    } else {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
-    setState(() {
-      _currentUser = _getMockUser();
-      _userPosts.addAll(_getMockUserPosts());
-      _isLoading = false;
-    });
+  Future<void> _loadMorePosts() async {
+    if (_isLoadingMorePosts || !_hasMorePosts || _currentUser == null) return;
+
+    setState(() => _isLoadingMorePosts = true);
+
+    try {
+      final morePosts = await _userService.getUserPosts(
+        _currentUser!.id,
+        limit: 20,
+        lastDocument: _lastPostDocument,
+      );
+
+      if (morePosts.isNotEmpty) {
+        _lastPostDocument = await _userService.getLastPostDocument(
+          _currentUser!.id,
+          _userPosts.length + morePosts.length,
+        );
+      }
+
+      if (mounted) {
+        setState(() {
+          _userPosts.addAll(morePosts);
+          _hasMorePosts = morePosts.length >= 20;
+          _isLoadingMorePosts = false;
+        });
+      }
+    } catch (e) {
+      print('Error loading more posts: $e');
+      if (mounted) {
+        setState(() => _isLoadingMorePosts = false);
+      }
+    }
+  }
+
+  Future<void> _loadSavedPosts() async {
+    setState(() => _isLoadingSaved = true);
+
+    final posts = await _postService.getSavedPosts();
+
+    if (mounted) {
+      setState(() {
+        _savedPosts = posts;
+        _isLoadingSaved = false;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading || _currentUser == null) {
+    if (_isLoading) {
       return const Scaffold(
         backgroundColor: Color(0xFF0F172A),
-        body: Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: CircularProgressIndicator(
+            color: Color(0xFF2B6CEE),
+          ),
+        ),
+      );
+    }
+
+    if (_currentUser == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF0F172A),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(
+                Icons.error_outline,
+                size: 64,
+                color: Color(0xFF94A3B8),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                'Failed to load profile',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 24),
+              ElevatedButton(
+                onPressed: _loadUserData,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF2B6CEE),
+                ),
+                child: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
       );
     }
 
@@ -95,7 +218,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               ),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.2),
+                  color: Colors.black.withValues(alpha: 0.2),
                   blurRadius: 20,
                   spreadRadius: 5,
                 ),
@@ -205,7 +328,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       color: const Color(0xFF1E293B),
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
-                        color: const Color(0xFF2B6CEE).withOpacity(0.3),
+                        color: const Color(0xFF2B6CEE).withValues(alpha: 0.3),
                       ),
                     ),
                     child: Text(
@@ -258,7 +381,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                       vertical: 12,
                     ),
                     side: BorderSide(
-                      color: Colors.white.withOpacity(0.2),
+                      color: Colors.white.withValues(alpha: 0.2),
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -283,7 +406,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(16),
           border: Border.all(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
           ),
         ),
         child: Row(
@@ -296,7 +419,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             Container(
               width: 1,
               height: 40,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
             ),
             _buildStatItem(
               'Followers',
@@ -305,7 +428,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
             Container(
               width: 1,
               height: 40,
-              color: Colors.white.withOpacity(0.1),
+              color: Colors.white.withValues(alpha: 0.1),
             ),
             _buildStatItem(
               'Following',
@@ -416,99 +539,304 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       );
     }
 
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: _userPosts.length,
-      itemBuilder: (context, index) {
-        final post = _userPosts[index];
-        return Container(
-          decoration: BoxDecoration(
-            color: const Color(0xFF1E293B),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.05),
+    return Column(
+      children: [
+        Expanded(
+          child: GridView.builder(
+            padding: const EdgeInsets.all(12),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: _userPosts.length,
+            itemBuilder: (context, index) {
+              final post = _userPosts[index];
+              return _buildPostCard(post);
+            },
+          ),
+        ),
+        // Load More Button
+        if (_hasMorePosts)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            child: _isLoadingMorePosts
+                ? const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(16),
+                      child: CircularProgressIndicator(
+                        color: Color(0xFF2B6CEE),
+                      ),
+                    ),
+                  )
+                : ElevatedButton(
+                    onPressed: _loadMorePosts,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF1E293B),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: Colors.white.withValues(alpha: 0.1),
+                        ),
+                      ),
+                      elevation: 0,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Load More Posts',
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.keyboard_arrow_down,
+                          color: Colors.white.withValues(alpha: 0.7),
+                        ),
+                      ],
+                    ),
+                  ),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildSavedTab() {
+    if (_isLoadingSaved) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: Color(0xFF2B6CEE),
+        ),
+      );
+    }
+
+    if (_savedPosts.isEmpty) {
+      return RefreshIndicator(
+        onRefresh: _loadSavedPosts,
+        color: const Color(0xFF2B6CEE),
+        backgroundColor: const Color(0xFF1E293B),
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: SizedBox(
+            height: MediaQuery.of(context).size.height * 0.6,
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.bookmark_border,
+                    size: 60,
+                    color: Color(0xFF94A3B8),
+                  ),
+                  SizedBox(height: 16),
+                  Text(
+                    'No saved posts',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Save posts to view them here',
+                    style: TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 14,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Pull down to refresh',
+                    style: TextStyle(
+                      color: Color(0xFF94A3B8),
+                      fontSize: 12,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          child: Stack(
-            children: [
-              if (post.imageUrls.isNotEmpty)
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: Image.network(
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadSavedPosts,
+      color: const Color(0xFF2B6CEE),
+      backgroundColor: const Color(0xFF1E293B),
+      child: GridView.builder(
+        padding: const EdgeInsets.all(12),
+        physics: const AlwaysScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 12,
+          mainAxisSpacing: 12,
+        ),
+        itemCount: _savedPosts.length,
+        itemBuilder: (context, index) {
+          final post = _savedPosts[index];
+          return _buildPostCard(post);
+        },
+      ),
+    );
+  }
+
+  Widget _buildPostCard(FeedPost post) {
+    // Check if post has images
+    final hasImages = post.imageUrls.isNotEmpty;
+    
+    return Container(
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.05),
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: hasImages
+            ? Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.network(
                     post.imageUrls.first,
                     fit: BoxFit.cover,
-                    width: double.infinity,
-                    height: double.infinity,
-                  ),
-                )
-              else
-                Padding(
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        post.content,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
+                    errorBuilder: (context, error, stackTrace) {
+                      return Container(
+                        color: const Color(0xFF0F172A),
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image,
+                            color: Color(0xFF94A3B8),
+                            size: 40,
+                          ),
                         ),
-                        maxLines: 5,
-                        overflow: TextOverflow.ellipsis,
+                      );
+                    },
+                  ),
+                  // Gradient overlay for better text visibility
+                  Positioned(
+                    bottom: 0,
+                    left: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.7),
+                          ],
+                        ),
                       ),
-                      const Spacer(),
-                      Row(
+                      child: Row(
                         children: [
                           const Icon(
                             Icons.favorite,
                             size: 14,
-                            color: Color(0xFF94A3B8),
+                            color: Colors.white,
                           ),
                           const SizedBox(width: 4),
                           Text(
                             post.likes.toString(),
                             style: const TextStyle(
-                              color: Color(0xFF94A3B8),
+                              color: Colors.white,
                               fontSize: 12,
+                              fontWeight: FontWeight.w600,
                             ),
                           ),
                         ],
                       ),
+                    ),
+                  ),
+                ],
+              )
+            : Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      const Color(0xFF1E293B),
+                      const Color(0xFF0F172A).withValues(alpha: 0.8),
                     ],
                   ),
                 ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildSavedTab() {
-    return const Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.bookmark_border,
-            size: 60,
-            color: Color(0xFF94A3B8),
-          ),
-          SizedBox(height: 16),
-          Text(
-            'No saved posts',
-            style: TextStyle(
-              color: Colors.white,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-        ],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        post.content,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
+                        maxLines: 7,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF0F172A).withValues(alpha: 0.5),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.favorite,
+                            size: 14,
+                            color: Color(0xFFEC4899),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            post.likes.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          const Icon(
+                            Icons.chat_bubble,
+                            size: 14,
+                            color: Color(0xFF60A5FA),
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            post.comments.toString(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
       ),
     );
   }
@@ -540,7 +868,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
                   color: const Color(0xFF1E293B),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
-                    color: Colors.white.withOpacity(0.1),
+                    color: Colors.white.withValues(alpha: 0.1),
                   ),
                 ),
                 child: Text(
@@ -611,7 +939,7 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
               width: 40,
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.3),
+                color: Colors.white.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -728,48 +1056,6 @@ class _ProfileScreenState extends State<ProfileScreen> with SingleTickerProvider
       ),
     );
   }
-
-  UserModel _getMockUser() {
-    return UserModel(
-      id: 'current_user',
-      name: 'Akhil Kumar',
-      email: 'akhil.kumar@college.edu',
-      username: 'akhilkumar',
-      bio: 'Computer Science student passionate about AI, machine learning, and building cool stuff! Always learning something new 🚀',
-      department: 'Computer Science',
-      year: 'Junior',
-      interests: ['AI/ML', 'Web Development', 'Hackathons', 'Open Source', 'Entrepreneurship'],
-      skills: ['Python', 'Flutter', 'React', 'Node.js', 'TensorFlow', 'Firebase'],
-      followersCount: 342,
-      followingCount: 189,
-      postsCount: 24,
-      createdAt: DateTime.now().subtract(const Duration(days: 365)),
-      lastActive: DateTime.now().subtract(const Duration(minutes: 5)),
-    );
-  }
-
-  List<FeedPost> _getMockUserPosts() {
-    return [
-      FeedPost(
-        id: 'p1',
-        userId: 'current_user',
-        username: 'You',
-        content: 'Just finished our team\'s hackathon project!',
-        createdAt: DateTime.now().subtract(const Duration(days: 1)),
-        likes: 24,
-        comments: 5,
-      ),
-      FeedPost(
-        id: 'p2',
-        userId: 'current_user',
-        username: 'You',
-        content: 'Great workshop on machine learning today!',
-        createdAt: DateTime.now().subtract(const Duration(days: 3)),
-        likes: 18,
-        comments: 3,
-      ),
-    ];
-  }
 }
 
 class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
@@ -794,7 +1080,7 @@ class _SliverAppBarDelegate extends SliverPersistentHeaderDelegate {
         color: const Color(0xFF0F172A),
         border: Border(
           top: BorderSide(
-            color: Colors.white.withOpacity(0.05),
+            color: Colors.white.withValues(alpha: 0.05),
             width: 1,
           ),
         ),

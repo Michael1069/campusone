@@ -18,6 +18,11 @@
         );
       }
 
+      // Don't navigate away if there's an error (user is still on login screen)
+      if (auth.error != null) {
+        return const AuthShell();
+      }
+
       return auth.isLoggedIn
           ? const HomeScreen()
           : const AuthShell();
